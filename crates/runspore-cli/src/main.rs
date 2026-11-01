@@ -79,7 +79,34 @@ fn report_error(json_mode: bool, fail: &Fail) -> ExitCode {
     } else if let Some(report) = &fail.report {
         eprint!("{report}");
     } else {
-        eprintln!("spore: {}: {}", fail.code, fail.message);
+        eprintln!("spore: {}: {}", fail.code, text_error_message(fail));
     }
     ExitCode::from(fail.exit)
+}
+
+// The store's stale-lease Display repeats its type and code. Keep the
+// structured error untouched for --json and translate only text output.
+fn text_error_message(fail: &Fail) -> &str {
+    if fail.code == "lease.lost" {
+        "the attempt this token names has ended or is no longer held"
+    } else {
+        &fail.message
+    }
+}
+
+#[cfg(test)]
+mod text_error_tests {
+    use super::*;
+
+    #[test]
+    fn stale_lease_uses_a_sentence_in_text_but_keeps_json_details() {
+        let stale = Fail::usage("lease.lost", "store: Stale lease.lost: lease.lost");
+        assert_eq!(
+            text_error_message(&stale),
+            "the attempt this token names has ended or is no longer held"
+        );
+        assert_eq!(stale.message, "store: Stale lease.lost: lease.lost");
+        let other = Fail::usage("run.not-found", "no such run");
+        assert_eq!(text_error_message(&other), "no such run");
+    }
 }
